@@ -352,9 +352,6 @@ async function processModule ({ srcUrl, context, parentGetSource, parentResolve,
     }
   }
 
-  if (extraImports.size > 0) {
-    console.log('DEBUG: extraImports for', srcUrl, extraImports)
-  }
   return { setters, extraImports }
 }
 
