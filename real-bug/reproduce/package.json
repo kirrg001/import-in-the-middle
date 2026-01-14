@@ -1,0 +1,17 @@
+{
+  "name": "reproduce-iitm-bug",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@langchain/langgraph": "^1.0.15",
+    "import-in-the-middle": "^2.0.3"
+  }
+}
