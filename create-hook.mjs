@@ -433,7 +433,6 @@ export function createHook(meta) {
           source: `
 import { register } from '${iitmURL}'
 import * as namespace from ${JSON.stringify(realUrl)}
-export * from ${JSON.stringify(realUrl)}
 ${experimentalPatchInternals ? `import { setExperimentalPatchInternals } from '${iitmURL}'\nsetExperimentalPatchInternals(true)` : ''}
 
 // Mimic a Module object (https://tc39.es/ecma262/#sec-module-namespace-objects).
