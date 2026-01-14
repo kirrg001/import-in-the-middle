@@ -31,7 +31,7 @@ if (NODE_MAJOR >= 20 || (NODE_MAJOR === 18 && NODE_MINOR >= 19)) {
 
 let entrypoint
 
-function hasIitm (url) {
+function hasIitm(url) {
   try {
     return new URL(url).searchParams.has('iitm')
   } catch {
@@ -39,11 +39,11 @@ function hasIitm (url) {
   }
 }
 
-function isIitm (url, meta) {
+function isIitm(url, meta) {
   return url === meta.url || url === meta.url.replace('hook.mjs', 'create-hook.mjs')
 }
 
-function deleteIitm (url) {
+function deleteIitm(url) {
   let resultUrl
   try {
     const urlObj = new URL(url)
@@ -65,19 +65,19 @@ function deleteIitm (url) {
   return resultUrl
 }
 
-function isNodeMajor16AndMinor17OrGreater () {
+function isNodeMajor16AndMinor17OrGreater() {
   return NODE_MAJOR === 16 && NODE_MINOR >= 17
 }
 
-function isFileProtocol (urlObj) {
+function isFileProtocol(urlObj) {
   return urlObj.protocol === 'file:'
 }
 
-function isNodeProtocol (urlObj) {
+function isNodeProtocol(urlObj) {
   return urlObj.protocol === 'node:'
 }
 
-function needsToAddFileProtocol (urlObj) {
+function needsToAddFileProtocol(urlObj) {
   if (NODE_MAJOR === 17) {
     return !isFileProtocol(urlObj)
   }
@@ -96,15 +96,15 @@ function needsToAddFileProtocol (urlObj) {
  * @param {string} line
  * @returns {boolean}
  */
-function isStarExportLine (line) {
+function isStarExportLine(line) {
   return /^\* from /.test(line)
 }
 
-function isReExportLine (line) {
+function isReExportLine(line) {
   return /^export .* as .* from /.test(line)
 }
 
-function isBareSpecifier (specifier) {
+function isBareSpecifier(specifier) {
   // Relative and absolute paths are not bare specifiers.
   if (
     specifier.startsWith('.') ||
@@ -133,7 +133,7 @@ function isBareSpecifier (specifier) {
  *
  * - node: prefixed URL strings are considered bare specifiers in this context.
  */
-function isBareSpecifierFileUrlOrRegex (input) {
+function isBareSpecifierFileUrlOrRegex(input) {
   if (input instanceof RegExp) {
     return true
   }
@@ -163,7 +163,7 @@ function isBareSpecifierFileUrlOrRegex (input) {
  * - For node built-in modules, we add additional node: prefixed modules to the
  *   output array.
  */
-function ensureArrayWithBareSpecifiersFileUrlsAndRegex (array, type) {
+function ensureArrayWithBareSpecifiersFileUrlsAndRegex(array, type) {
   if (!Array.isArray(array)) {
     return undefined
   }
@@ -185,7 +185,7 @@ function ensureArrayWithBareSpecifiersFileUrlsAndRegex (array, type) {
   return array
 }
 
-function emitWarning (err) {
+function emitWarning(err) {
   // Unfortunately, process.emitWarning does not output the full error
   // with error.cause like console.warn does so we need to inspect it when
   // tracing warnings
@@ -205,7 +205,7 @@ function emitWarning (err) {
  * @returns {Promise<Map<string, string>>} The shimmed setters for all the exports
  * from the module and any transitive export all modules.
  */
-async function processModule ({ srcUrl, context, parentGetSource, parentResolve, excludeDefault, shouldWrap }) {
+async function processModule({ srcUrl, context, parentGetSource, parentResolve, excludeDefault, shouldWrap }) {
   const exportNames = await getExports(srcUrl, context, parentGetSource)
   const starExports = new Set()
   const setters = new Map()
@@ -355,18 +355,18 @@ async function processModule ({ srcUrl, context, parentGetSource, parentResolve,
   return { setters, extraImports }
 }
 
-function addIitm (url) {
+function addIitm(url) {
   const urlObj = new URL(url)
   urlObj.searchParams.set('iitm', 'true')
   return needsToAddFileProtocol(urlObj) ? 'file:' + urlObj.href : urlObj.href
 }
 
-export function createHook (meta) {
+export function createHook(meta) {
   let cachedResolve
   const iitmURL = new URL('lib/register.js', meta.url).toString()
   let includeModules, excludeModules
 
-  async function initialize (data) {
+  async function initialize(data) {
     if (global.__import_in_the_middle_initialized__) {
       process.emitWarning("The 'import-in-the-middle' hook has already been initialized")
     }
@@ -401,12 +401,12 @@ export function createHook (meta) {
     }
   }
 
-  function shouldWrap (url, specifier, format, importAttributes) {
+  function shouldWrap(url, specifier, format, importAttributes) {
     if (format && !HANDLED_FORMATS.has(format)) {
       return false
     }
 
-    function match (each) {
+    function match(each) {
       if (each instanceof RegExp) {
         return each.test(url)
       }
@@ -430,11 +430,10 @@ export function createHook (meta) {
       return false
     }
 
-    console.log('DEBUG: shouldWrap', url, 'returning true')
     return true
   }
 
-  async function resolve (specifier, context, parentResolve) {
+  async function resolve(specifier, context, parentResolve) {
     cachedResolve = parentResolve
 
     // See https://github.com/nodejs/import-in-the-middle/pull/76.
@@ -485,7 +484,7 @@ export function createHook (meta) {
     }
   }
 
-  async function getSource (url, context, parentGetSource) {
+  async function getSource(url, context, parentGetSource) {
     if (hasIitm(url)) {
       const realUrl = deleteIitm(url)
 
@@ -540,7 +539,7 @@ register(${JSON.stringify(realUrl)}, _, set, get, ${JSON.stringify(specifiers.ge
   }
 
   // For Node.js 16.12.0 and higher.
-  async function load (url, context, parentLoad) {
+  async function load(url, context, parentLoad) {
     if (hasIitm(url)) {
       const { source } = await getSource(url, context, parentLoad)
       return {
@@ -561,7 +560,7 @@ register(${JSON.stringify(realUrl)}, _, set, get, ${JSON.stringify(specifiers.ge
       load,
       resolve,
       getSource,
-      getFormat (url, context, parentGetFormat) {
+      getFormat(url, context, parentGetFormat) {
         if (hasIitm(url)) {
           return {
             format: 'module'
