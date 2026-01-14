@@ -1,4 +1,4 @@
-import got, { Options } from 'got'
+import got from 'got'
 import { strictEqual } from 'assert'
 import Hook from '../../index.js'
 

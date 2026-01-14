@@ -1,4 +1,3 @@
-import * as lib from '../fixtures/duplicate-explicit.mjs'
 import { strictEqual } from 'assert'
 import Hook from '../../index.js'
 

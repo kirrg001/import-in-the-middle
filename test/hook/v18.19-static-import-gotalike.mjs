@@ -7,7 +7,7 @@ Hook((exports, name) => {
   exports.foo = foo + '-wrapped'
 
   const renamedDefaultExport = exports.renamedDefaultExport
-  exports.renamedDefaultExport = function bazWrapped() {
+  exports.renamedDefaultExport = function bazWrapped () {
     return renamedDefaultExport() + '-wrapped'
   }
 })
@@ -15,8 +15,7 @@ Hook((exports, name) => {
 /* eslint-disable import/no-named-default */
 import {
   default as Got,
-  foo,
-  renamedDefaultExport
+  foo
 } from '../fixtures/got-alike.mjs'
 
 strictEqual(foo, '42-wrapped')

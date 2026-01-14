@@ -12,8 +12,6 @@ import gfn from '../fixtures/export-types/default-generator.mjs'
 import afn from '../fixtures/export-types/default-function-anon.mjs'
 import acn from '../fixtures/export-types/default-class-anon.mjs'
 import agfn from '../fixtures/export-types/default-generator-anon.mjs'
-import callEx from '../fixtures/export-types/default-call-expression.mjs'
-import { somethingElse } from '../fixtures/export-types/default-call-expression-renamed.mjs'
 import defaultImportExport from '../fixtures/export-types/import-default-export.mjs'
 import varDefaultExport from '../fixtures/export-types/variable-default-export.mjs'
 import { strictEqual } from 'assert'
@@ -36,7 +34,7 @@ Hook((exports, name) => {
     }
   } else if (name.match(/default-generator\.m?js/)) {
     const orig2 = exports.default
-    exports.default = function* () {
+    exports.default = function * () {
       return orig2().next().value + 1
     }
   } else if (name.match(/default-function-anon\.m?js/)) {
@@ -50,7 +48,7 @@ Hook((exports, name) => {
     }
   } else if (name.match(/default-generator-anon\.m?js/)) {
     const orig2 = exports.default
-    exports.default = function* () {
+    exports.default = function * () {
       return orig2().next().value + 1
     }
   } else if (name.match(/import-default-export\.m?js/)) {
