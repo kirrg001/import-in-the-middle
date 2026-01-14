@@ -302,8 +302,6 @@ async function processModule ({ srcUrl, context, parentGetSource, parentResolve,
 
       const importName = `$import_${exportedName.replace(/[^a-zA-Z0-9_$]/g, '_')}`
       extraImports.set(importName, `import { ${local === 'default' ? 'default as ' + importName : local + ' as ' + importName} } from ${JSON.stringify(importUrl)}`)
-
-      const variableName = `$${exportedName.replace(/[^a-zA-Z0-9_$]/g, '_')}`
       const objectKey = JSON.stringify(exportedName)
       const reExportedName = exportedName === 'default' || NODE_MAJOR < 16 ? exportedName : objectKey
 
