@@ -1,5 +1,5 @@
 export class RunTree {
-    constructor() {
-        this.name = 'runtree'
-    }
+  constructor () {
+    this.name = 'runtree'
+  }
 }

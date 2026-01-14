@@ -31,7 +31,7 @@ if (NODE_MAJOR >= 20 || (NODE_MAJOR === 18 && NODE_MINOR >= 19)) {
 
 let entrypoint
 
-function hasIitm(url) {
+function hasIitm (url) {
   try {
     return new URL(url).searchParams.has('iitm')
   } catch {
@@ -39,11 +39,11 @@ function hasIitm(url) {
   }
 }
 
-function isIitm(url, meta) {
+function isIitm (url, meta) {
   return url === meta.url || url === meta.url.replace('hook.mjs', 'create-hook.mjs')
 }
 
-function deleteIitm(url) {
+function deleteIitm (url) {
   let resultUrl
   try {
     const urlObj = new URL(url)
@@ -65,19 +65,19 @@ function deleteIitm(url) {
   return resultUrl
 }
 
-function isNodeMajor16AndMinor17OrGreater() {
+function isNodeMajor16AndMinor17OrGreater () {
   return NODE_MAJOR === 16 && NODE_MINOR >= 17
 }
 
-function isFileProtocol(urlObj) {
+function isFileProtocol (urlObj) {
   return urlObj.protocol === 'file:'
 }
 
-function isNodeProtocol(urlObj) {
+function isNodeProtocol (urlObj) {
   return urlObj.protocol === 'node:'
 }
 
-function needsToAddFileProtocol(urlObj) {
+function needsToAddFileProtocol (urlObj) {
   if (NODE_MAJOR === 17) {
     return !isFileProtocol(urlObj)
   }
@@ -96,11 +96,15 @@ function needsToAddFileProtocol(urlObj) {
  * @param {string} line
  * @returns {boolean}
  */
-function isStarExportLine(line) {
+function isStarExportLine (line) {
   return /^\* from /.test(line)
 }
 
-function isBareSpecifier(specifier) {
+function isReExportLine (line) {
+  return /^export .* as .* from /.test(line)
+}
+
+function isBareSpecifier (specifier) {
   // Relative and absolute paths are not bare specifiers.
   if (
     specifier.startsWith('.') ||
@@ -129,7 +133,7 @@ function isBareSpecifier(specifier) {
  *
  * - node: prefixed URL strings are considered bare specifiers in this context.
  */
-function isBareSpecifierFileUrlOrRegex(input) {
+function isBareSpecifierFileUrlOrRegex (input) {
   if (input instanceof RegExp) {
     return true
   }
@@ -159,7 +163,7 @@ function isBareSpecifierFileUrlOrRegex(input) {
  * - For node built-in modules, we add additional node: prefixed modules to the
  *   output array.
  */
-function ensureArrayWithBareSpecifiersFileUrlsAndRegex(array, type) {
+function ensureArrayWithBareSpecifiersFileUrlsAndRegex (array, type) {
   if (!Array.isArray(array)) {
     return undefined
   }
@@ -181,7 +185,7 @@ function ensureArrayWithBareSpecifiersFileUrlsAndRegex(array, type) {
   return array
 }
 
-function emitWarning(err) {
+function emitWarning (err) {
   // Unfortunately, process.emitWarning does not output the full error
   // with error.cause like console.warn does so we need to inspect it when
   // tracing warnings
@@ -201,10 +205,11 @@ function emitWarning(err) {
  * @returns {Promise<Map<string, string>>} The shimmed setters for all the exports
  * from the module and any transitive export all modules.
  */
-async function processModule({ srcUrl, context, parentGetSource, parentResolve, excludeDefault }) {
+async function processModule ({ srcUrl, context, parentGetSource, parentResolve, excludeDefault, shouldWrap }) {
   const exportNames = await getExports(srcUrl, context, parentGetSource)
   const starExports = new Set()
   const setters = new Map()
+  const extraImports = new Map()
 
   const addSetter = (name, setter, isStarExport = false) => {
     if (setters.has(name)) {
@@ -234,17 +239,6 @@ async function processModule({ srcUrl, context, parentGetSource, parentResolve, 
   }
 
   for (const n of exportNames) {
-    if (excludeDefault) {
-      const isDefault = n === 'default' ||
-        (
-          n === 'module.exports' &&
-          context.format === 'commonjs' &&
-          hasModuleExportsCJSDefault
-        )
-
-      if (isDefault) continue
-    }
-
     if (isStarExportLine(n) === true) {
       const [, modFile] = n.split('* from ')
 
@@ -254,20 +248,91 @@ async function processModule({ srcUrl, context, parentGetSource, parentResolve, 
       // URL. We also need to call `parentResolve` for all sub-modules to get
       // the `format`. We can't rely on the parents `format` to know if this
       // sub-module is ESM or CJS!
-      const result = await parentResolve(newSpecifier, { parentURL: srcUrl })
+      let result
+      try {
+        result = await parentResolve(newSpecifier, { parentURL: srcUrl })
+      } catch {
+        continue
+      }
+
+      // If the module of the export * is the one we are currently wrapping, we must skip it.
+      // This happens because of cyclic dependencies.
+      if (result.url === srcUrl) continue
 
       const subSetters = await processModule({
         srcUrl: result.url,
         context: { ...context, format: result.format },
         parentGetSource,
         parentResolve,
-        excludeDefault: true
+        excludeDefault: true,
+        shouldWrap
       })
+      // ...
 
-      for (const [name, setter] of subSetters.entries()) {
+      for (const [name, setter] of subSetters.setters.entries()) {
         addSetter(name, setter, true)
       }
+
+      for (const [name, value] of subSetters.extraImports.entries()) {
+        extraImports.set(name, value)
+      }
+    } else if (isReExportLine(n) === true) {
+      const match = n.match(/^export (.+) as (.+) from (.+)$/)
+      const local = match[1]
+      const exportedName = match[2]
+      const source = match[3]
+
+      if (excludeDefault) {
+        const isDefault = exportedName === 'default' || (exportedName === 'module.exports' && context.format === 'commonjs' && hasModuleExportsCJSDefault)
+        if (isDefault) continue
+      }
+
+      const newSpecifier = isBareSpecifier(source) ? source : new URL(source, srcUrl).href
+      let result
+      try {
+        result = await parentResolve(newSpecifier, { parentURL: srcUrl })
+      } catch {
+        continue
+      }
+
+      let importUrl = result.url
+      if (shouldWrap(result.url)) {
+        importUrl = addIitm(result.url)
+      }
+
+      const importName = `$import_${exportedName.replace(/[^a-zA-Z0-9_$]/g, '_')}`
+      extraImports.set(importName, `import { ${local === 'default' ? 'default as ' + importName : local + ' as ' + importName} } from ${JSON.stringify(importUrl)}`)
+
+      const variableName = `$${exportedName.replace(/[^a-zA-Z0-9_$]/g, '_')}`
+      const objectKey = JSON.stringify(exportedName)
+      const reExportedName = exportedName === 'default' || NODE_MAJOR < 16 ? exportedName : objectKey
+
+      addSetter(exportedName, `
+      try {
+        _[${objectKey}] = ${importName}
+      } catch (err) {
+        if (!(err instanceof ReferenceError)) throw err
+      }
+      export { ${importName} as ${reExportedName} }
+      set[${objectKey}] = (v) => {
+        _[${objectKey}] = v
+        return true
+      }
+      get[${objectKey}] = () => _[${objectKey}]
+      `)
     } else {
+      // ...
+      if (excludeDefault) {
+        const isDefault = n === 'default' ||
+          (
+            n === 'module.exports' &&
+            context.format === 'commonjs' &&
+            hasModuleExportsCJSDefault
+          )
+
+        if (isDefault) continue
+      }
+
       const variableName = `$${n.replace(/[^a-zA-Z0-9_$]/g, '_')}`
       const objectKey = JSON.stringify(n)
       const reExportedName = n === 'default' || NODE_MAJOR < 16 ? n : objectKey
@@ -289,21 +354,24 @@ async function processModule({ srcUrl, context, parentGetSource, parentResolve, 
     }
   }
 
-  return setters
+  if (extraImports.size > 0) {
+    console.log('DEBUG: extraImports for', srcUrl, extraImports)
+  }
+  return { setters, extraImports }
 }
 
-function addIitm(url) {
+function addIitm (url) {
   const urlObj = new URL(url)
   urlObj.searchParams.set('iitm', 'true')
   return needsToAddFileProtocol(urlObj) ? 'file:' + urlObj.href : urlObj.href
 }
 
-export function createHook(meta) {
+export function createHook (meta) {
   let cachedResolve
   const iitmURL = new URL('lib/register.js', meta.url).toString()
   let includeModules, excludeModules
 
-  async function initialize(data) {
+  async function initialize (data) {
     if (global.__import_in_the_middle_initialized__) {
       process.emitWarning("The 'import-in-the-middle' hook has already been initialized")
     }
@@ -338,7 +406,40 @@ export function createHook(meta) {
     }
   }
 
-  async function resolve(specifier, context, parentResolve) {
+  function shouldWrap (url, specifier, format, importAttributes) {
+    if (format && !HANDLED_FORMATS.has(format)) {
+      return false
+    }
+
+    function match (each) {
+      if (each instanceof RegExp) {
+        return each.test(url)
+      }
+      return each === specifier || each === url || (url.startsWith('file:') && each === fileURLToPath(url))
+    }
+
+    if (includeModules && !includeModules.some(match)) {
+      return false
+    }
+
+    if (excludeModules && excludeModules.some(match)) {
+      return false
+    }
+
+    // We don't want to attempt to wrap native modules
+    if (url.endsWith('.node')) {
+      return false
+    }
+
+    if (importAttributes && importAttributes.type === 'json') {
+      return false
+    }
+
+    console.log('DEBUG: shouldWrap', url, 'returning true')
+    return true
+  }
+
+  async function resolve (specifier, context, parentResolve) {
     cachedResolve = parentResolve
 
     // See https://github.com/nodejs/import-in-the-middle/pull/76.
@@ -360,43 +461,14 @@ export function createHook(meta) {
       return { url: result.url, format: 'commonjs' }
     }
 
-    // For included/excluded modules, we check the specifier to match libraries
-    // that are loaded with bare specifiers from node_modules.
-    //
-    // For non-bare specifier imports, we match to the full file URL because
-    // using relative paths would be very error prone!
-    function match(each) {
-      if (each instanceof RegExp) {
-        return each.test(result.url)
-      }
+    // Node.js v21 renames importAssertions to importAttributes
+    const importAttributes = context.importAttributes || context.importAssertions
 
-      return each === specifier || each === result.url || (result.url.startsWith('file:') && each === fileURLToPath(result.url))
-    }
-
-    if (result.format && !HANDLED_FORMATS.has(result.format)) {
-      return result
-    }
-
-    if (includeModules && !includeModules.some(match)) {
-      return result
-    }
-
-    if (excludeModules && excludeModules.some(match)) {
+    if (!shouldWrap(result.url, specifier, result.format, importAttributes)) {
       return result
     }
 
     if (isIitm(parentURL, meta) || hasIitm(parentURL)) {
-      return result
-    }
-
-    // We don't want to attempt to wrap native modules
-    if (result.url.endsWith('.node')) {
-      return result
-    }
-
-    // Node.js v21 renames importAssertions to importAttributes
-    const importAttributes = context.importAttributes || context.importAssertions
-    if (importAttributes && importAttributes.type === 'json') {
       return result
     }
 
@@ -418,22 +490,23 @@ export function createHook(meta) {
     }
   }
 
-  async function getSource(url, context, parentGetSource) {
+  async function getSource (url, context, parentGetSource) {
     if (hasIitm(url)) {
       const realUrl = deleteIitm(url)
 
       try {
-        const setters = await processModule({
+        const { setters, extraImports } = await processModule({
           srcUrl: realUrl,
           context,
           parentGetSource,
-          parentResolve: cachedResolve
+          parentResolve: cachedResolve,
+          shouldWrap: (url) => shouldWrap(url, specifiers.get(url))
         })
-        return {
-          source: `
+        const source = `
 import { register } from '${iitmURL}'
 import * as namespace from ${JSON.stringify(realUrl)}
 ${experimentalPatchInternals ? `import { setExperimentalPatchInternals } from '${iitmURL}'\nsetExperimentalPatchInternals(true)` : ''}
+${Array.from(extraImports.values()).join('\n')}
 
 // Mimic a Module object (https://tc39.es/ecma262/#sec-module-namespace-objects).
 const _ = Object.create(null, { [Symbol.toStringTag]: { value: 'Module' } })
@@ -444,6 +517,8 @@ ${Array.from(setters.values()).join('\n')}
 
 register(${JSON.stringify(realUrl)}, _, set, get, ${JSON.stringify(specifiers.get(realUrl))})
 `
+        return {
+          source
         }
       } catch (cause) {
         // If there are other ESM loader hooks registered as well as iitm,
@@ -470,7 +545,7 @@ register(${JSON.stringify(realUrl)}, _, set, get, ${JSON.stringify(specifiers.ge
   }
 
   // For Node.js 16.12.0 and higher.
-  async function load(url, context, parentLoad) {
+  async function load (url, context, parentLoad) {
     if (hasIitm(url)) {
       const { source } = await getSource(url, context, parentLoad)
       return {
@@ -491,7 +566,7 @@ register(${JSON.stringify(realUrl)}, _, set, get, ${JSON.stringify(specifiers.ge
       load,
       resolve,
       getSource,
-      getFormat(url, context, parentGetFormat) {
+      getFormat (url, context, parentGetFormat) {
         if (hasIitm(url)) {
           return {
             format: 'module'

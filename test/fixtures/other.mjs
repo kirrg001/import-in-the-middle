@@ -1,10 +1,10 @@
 import { RunTree } from './index.mjs'
 
 export class Client {
-    constructor() {
-        console.log('Client constructor using RunTree...')
-        this.tree = new RunTree()
-    }
+  constructor () {
+    console.log('Client constructor using RunTree...')
+    this.tree = new RunTree()
+  }
 }
 
 // Greife direkt beim Laden zu

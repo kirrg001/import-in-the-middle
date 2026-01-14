@@ -3,7 +3,7 @@ import { strictEqual } from 'assert'
 import Hook from '../../index.js'
 
 Hook((exports, name) => {
-  if (name.endsWith('duplicate-explicit.mjs')) {
+  if (name.endsWith('duplicate-a.mjs')) {
     strictEqual(exports.foo, 'c')
     exports.foo += '-wrapped'
   }

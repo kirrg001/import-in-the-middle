@@ -2,9 +2,8 @@
 export * from './circular-reexport-b.mjs'
 export { RunTree } from './circular-reexport-b.mjs'
 
-export function helperA() {
+export function helperA () {
   return 'helper-a'
 }
 
-export let counter = 0
-
+export const counter = 0
